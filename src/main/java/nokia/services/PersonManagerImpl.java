@@ -32,7 +32,7 @@ public class PersonManagerImpl implements PersonManager {
 
 
     @Override
-    public Boolean addPerson(String id, String name) {
+    public boolean addPerson(String id, String name) {
         if (StringUtils.isEmpty(id) || StringUtils.isEmpty(name)) {
             logger.debug("the person id or name is null");
             return false;

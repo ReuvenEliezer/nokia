@@ -30,7 +30,7 @@ public class PersonTest {
 
     @Test
     public void addPerson_Test() {
-        Boolean isAdded = personManager.addPerson("1", "Person");
+        boolean isAdded = personManager.addPerson("1", "Person");
         Assert.assertTrue("unable to add person", isAdded);
     }
 
@@ -38,8 +38,11 @@ public class PersonTest {
     @Test
     public void addExistingPerson_Test() {
         personManager.addPerson("1", "Person1");
-        Boolean isExistingAdded = personManager.addPerson("1", "Person2");
+        boolean isExistingAdded = personManager.addPerson("1", "Person2");
+
         Assert.assertFalse("person is overridden", isExistingAdded);
+        List<Person> personList = personManager.searchPerson("Person1");
+        Assert.assertEquals("person is override", 1, personList.size());
     }
 
     @Test
@@ -64,42 +67,40 @@ public class PersonTest {
 
     @Test
     public void notValidPersonTest() {
-        Boolean isAdded = personManager.addPerson(null, "PersonA");
+        boolean isAdded = personManager.addPerson(null, "PersonA");
         Assert.assertFalse(isAdded);
         isAdded = personManager.addPerson("1", null);
         Assert.assertFalse(isAdded);
         List<Person> personList = personManager.searchPerson(null);
         Assert.assertTrue(personList.isEmpty());
         int deletePersonCount = personManager.deletePerson(null);
-        Assert.assertEquals(0,deletePersonCount);
+        Assert.assertEquals(0, deletePersonCount);
 
     }
 
     @Test
     public void multiPersonTest() throws InterruptedException {
 
-        Configuration.maxPersonSize = 1000000;
-        ExecutorService executorService = Executors.newFixedThreadPool(1000);
+        Configuration.maxPersonSize = 300000;
+        ExecutorService executorService = Executors.newFixedThreadPool(5);
 
         StopWatch stopWatch = new StopWatch();
         stopWatch.start("addPerson");
-        int totalPerson = Math.min(Configuration.maxPersonSize, 100000);
-        for (int i = 0; i < totalPerson; i++) {
-            int finalI = i;
+        int totalIterations = 300000;
+
+        int totalPerson = Math.min(totalIterations, Configuration.maxPersonSize);
+
+        for (int i = 0; i < totalIterations; i++) {
+            int personId = i;
             executorService.submit(() -> {
-                personManager.addPerson(String.valueOf(finalI), "Person");
-                personManager.searchPerson("Person");
-                personManager.searchPerson("Person");
-                personManager.searchPerson("Person");
-                personManager.searchPerson("Person");
-                personManager.searchPerson("Person");
-                personManager.searchPerson("Person");
+                personManager.addPerson(String.valueOf(personId), "Person");
+            });
+            executorService.submit(() -> {
                 personManager.searchPerson("Person");
             });
         }
-
         executorService.shutdown();
-        executorService.awaitTermination(60, TimeUnit.SECONDS);
+        executorService.awaitTermination(1, TimeUnit.MINUTES);
         stopWatch.stop();
 
         stopWatch.start("searchPerson beforeDeleting:");
@@ -122,9 +123,9 @@ public class PersonTest {
         System.out.println("Time Elapsed: " + stopWatch.getTotalTimeSeconds());
 
         Assertions.assertAll(
-                () -> Assertions.assertEquals(totalPerson, beforeDeleting.size()),
-                () -> Assertions.assertEquals(totalPerson, personDeletedSize),
-                () -> Assertions.assertEquals(0, afterDeleting.size()));
+                () -> Assert.assertEquals("total person beforeDeleting not as expected", totalPerson, beforeDeleting.size()),
+                () -> Assert.assertEquals("total personDeletedSize not as expected", totalPerson, personDeletedSize),
+                () -> Assert.assertEquals("total person afterDeleting not as expected", 0, afterDeleting.size()));
     }
 
     @Test
@@ -132,23 +133,31 @@ public class PersonTest {
         /**
          * in this scenario - by using ReadLockOptimizationBeforeTryToAddPerson the total time is 25% performance VS only check in the write block.
          */
-        Configuration.maxPersonSize = 100;
-        ExecutorService executorService = Executors.newFixedThreadPool(100);
+        Configuration.maxPersonSize = 1000;
+        ExecutorService executorService = Executors.newFixedThreadPool(5);
 
         StopWatch stopWatch = new StopWatch();
-        stopWatch.start("addPerson");
-        for (int i = 0; i < 1000000; i++) {
+        stopWatch.start("littleAddPersonAndManySearchPerson");
+        int totalIterations = 1000000;
+        int totalPerson = Math.min(totalIterations, Configuration.maxPersonSize);
+
+        for (int i = 0; i < totalIterations; i++) {
+            int finalI = i;
             executorService.submit(() -> {
-                personManager.addPerson("1", "Person");
+                personManager.addPerson(String.valueOf(finalI), "Person");
+            });
+            executorService.submit(() -> {
                 personManager.searchPerson("Person");
             });
         }
 
+
         executorService.shutdown();
         executorService.awaitTermination(60, TimeUnit.SECONDS);
         stopWatch.stop();
-
-
+        List<Person> personList = personManager.searchPerson("Person");
+        System.out.println(personList.size());
+        Assert.assertEquals("totalPerson not as expected:", totalPerson, personList.size());
         System.out.println("prettyPrint: " + stopWatch.prettyPrint());
         System.out.println("Time Elapsed: " + stopWatch.getTotalTimeSeconds());
 

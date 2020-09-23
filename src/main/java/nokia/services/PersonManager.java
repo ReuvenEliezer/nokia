@@ -6,7 +6,7 @@ import java.util.List;
 
 public interface PersonManager {
 
-    Boolean addPerson(String id, String name);
+    boolean addPerson(String id, String name);
 
     int deletePerson(String name);
 
