@@ -13,10 +13,10 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.util.StopWatch;
 
+import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.UUID;
+import java.util.concurrent.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT, classes = NokiaApp.class)
 @RunWith(SpringRunner.class)
@@ -79,28 +79,50 @@ public class PersonTest {
     }
 
     @Test
-    public void multiPersonTest() throws InterruptedException {
+    public void multiPersonPerformanceTest() throws InterruptedException, ExecutionException {
+        /**
+         * the time complexity by use ReentrantReadWriteLock is 10% VS synchronized.
+         * in this scenario - by    ReentrantReadWriteLock time is ~1.3 sec, and by synchronized is ~11 sec
+         */
+        Configuration.maxPersonSize = 50000;
+        Duration maxWaitingDuration = Duration.ofSeconds(30);
 
-        Configuration.maxPersonSize = 300000;
-        ExecutorService executorService = Executors.newFixedThreadPool(5);
+        ScheduledExecutorService executorService = Executors.newScheduledThreadPool(30);
 
         StopWatch stopWatch = new StopWatch();
-        stopWatch.start("addPerson");
-        int totalIterations = 300000;
+        stopWatch.start("addPersonAndSearchPerson");
 
-        int totalPerson = Math.min(totalIterations, Configuration.maxPersonSize);
+        executorService.scheduleAtFixedRate(() -> {
+            personManager.addPerson(UUID.randomUUID().toString(), "Person");
+        }, 0, 10, TimeUnit.MICROSECONDS);
 
-        for (int i = 0; i < totalIterations; i++) {
-            int personId = i;
-            executorService.submit(() -> {
-                personManager.addPerson(String.valueOf(personId), "Person");
-                personManager.searchPerson("Person");
-            });
-//            executorService.submit(() -> {
-//            });
+        executorService.scheduleAtFixedRate(() -> {
+            personManager.searchPerson("Person");
+        }, 0, 1, TimeUnit.MICROSECONDS);
+
+
+        Duration elapsedTime = Duration.ZERO;
+        Duration sleepDuration = Duration.ofMillis(10);
+
+        while (true) {
+            ScheduledFuture<?> result = executorService.schedule(() ->
+                    personManager.searchPerson("Person"), 0, TimeUnit.MICROSECONDS);
+            Thread.sleep(sleepDuration.toMillis());
+            elapsedTime = elapsedTime.plus(sleepDuration);
+            if (maxWaitingDuration.minus(elapsedTime).isNegative()) {
+                System.out.println("elapsedTime: " + elapsedTime);
+                break;
+            }
+
+            Object o = result.get();
+            List<Person> beforeDeleting = (List<Person>) o;
+            if (beforeDeleting.size() == Configuration.maxPersonSize) {
+                break;
+            }
         }
-        executorService.shutdown();
-        executorService.awaitTermination(1, TimeUnit.MINUTES);
+
+        System.out.println("sleepDuration: " + sleepDuration);
+        executorService.shutdownNow();
         stopWatch.stop();
 
         stopWatch.start("searchPerson beforeDeleting:");
@@ -123,45 +145,9 @@ public class PersonTest {
         System.out.println("Time Elapsed: " + stopWatch.getTotalTimeSeconds());
 
         Assertions.assertAll(
-                () -> Assert.assertEquals("total person beforeDeleting not as expected", totalPerson, beforeDeleting.size()),
-                () -> Assert.assertEquals("total personDeletedSize not as expected", totalPerson, personDeletedSize),
+                () -> Assert.assertEquals("total person beforeDeleting not as expected", Configuration.maxPersonSize, beforeDeleting.size()),
+                () -> Assert.assertEquals("total personDeletedSize not as expected", Configuration.maxPersonSize, personDeletedSize),
                 () -> Assert.assertEquals("total person afterDeleting not as expected", 0, afterDeleting.size()));
-    }
-
-    @Test
-    public void multiPersonReadLockOptimizationBeforeTryToAddPersonTest() throws InterruptedException {
-        /**
-         * in this scenario - by using ReadLockOptimizationBeforeTryToAddPerson the total time is 25% performance VS only check in the write block.
-         */
-        Configuration.maxPersonSize = 1000;
-        ExecutorService executorService = Executors.newFixedThreadPool(5);
-
-        StopWatch stopWatch = new StopWatch();
-        stopWatch.start("littleAddPersonAndManySearchPerson");
-        int totalIterations = 1000000;
-        int totalPerson = Math.min(totalIterations, Configuration.maxPersonSize);
-
-        for (int i = 0; i < totalIterations; i++) {
-            int finalI = i;
-            executorService.submit(() -> {
-                personManager.addPerson(String.valueOf(finalI), "Person");
-                personManager.searchPerson("Person");
-            });
-//            executorService.submit(() -> {
-//                personManager.searchPerson("Person");
-//            });
-        }
-
-
-        executorService.shutdown();
-        executorService.awaitTermination(60, TimeUnit.SECONDS);
-        stopWatch.stop();
-        List<Person> personList = personManager.searchPerson("Person");
-        System.out.println(personList.size());
-        Assert.assertEquals("totalPerson not as expected:", totalPerson, personList.size());
-        System.out.println("prettyPrint: " + stopWatch.prettyPrint());
-        System.out.println("Time Elapsed: " + stopWatch.getTotalTimeSeconds());
-
     }
 
 }
