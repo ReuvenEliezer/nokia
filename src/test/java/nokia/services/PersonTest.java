@@ -94,10 +94,10 @@ public class PersonTest {
             int personId = i;
             executorService.submit(() -> {
                 personManager.addPerson(String.valueOf(personId), "Person");
-            });
-            executorService.submit(() -> {
                 personManager.searchPerson("Person");
             });
+//            executorService.submit(() -> {
+//            });
         }
         executorService.shutdown();
         executorService.awaitTermination(1, TimeUnit.MINUTES);
@@ -145,10 +145,11 @@ public class PersonTest {
             int finalI = i;
             executorService.submit(() -> {
                 personManager.addPerson(String.valueOf(finalI), "Person");
-            });
-            executorService.submit(() -> {
                 personManager.searchPerson("Person");
             });
+//            executorService.submit(() -> {
+//                personManager.searchPerson("Person");
+//            });
         }
 
 
