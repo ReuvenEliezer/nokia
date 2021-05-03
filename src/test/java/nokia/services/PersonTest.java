@@ -46,6 +46,14 @@ public class PersonTest {
     }
 
     @Test
+    public void _Test() {
+        personManager.addPerson("1", "Person");
+        boolean isExistingAdded = personManager.addPerson("2", "Person");
+        List<Person> personList = personManager.searchPerson("Person");
+        Assert.assertEquals("person is override", 2, personList.size());
+    }
+
+    @Test
     public void searchPersonTest() {
         personManager.addPerson("1", "PersonA");
         personManager.addPerson("2", "PersonA");
@@ -85,8 +93,10 @@ public class PersonTest {
          * in this scenario - by    ReentrantReadWriteLock time is ~1.3 sec, and by synchronized is ~11 sec
          */
         Configuration.maxPersonSize = 50000;
-        Duration maxWaitingDuration = Duration.ofSeconds(30);
+        Duration maxWaitingDuration = Duration.ofSeconds(60);
+        int readWriteRatio = 10; // more readers on writers 10 reader on each writer
 
+        int everyMiroSec = 1;
         ScheduledExecutorService executorService = Executors.newScheduledThreadPool(30);
 
         StopWatch stopWatch = new StopWatch();
@@ -94,11 +104,11 @@ public class PersonTest {
 
         executorService.scheduleAtFixedRate(() -> {
             personManager.addPerson(UUID.randomUUID().toString(), "Person");
-        }, 0, 10, TimeUnit.MICROSECONDS);
+        }, 0, everyMiroSec * readWriteRatio, TimeUnit.MICROSECONDS);
 
         executorService.scheduleAtFixedRate(() -> {
             personManager.searchPerson("Person");
-        }, 0, 1, TimeUnit.MICROSECONDS);
+        }, 0, everyMiroSec, TimeUnit.MICROSECONDS);
 
 
         Duration elapsedTime = Duration.ZERO;
@@ -115,7 +125,7 @@ public class PersonTest {
             }
 
             Object o = result.get();
-            List<Person> beforeDeleting = (List<Person>) o;
+            List<Person>  beforeDeleting = (List<Person>) o;
             if (beforeDeleting.size() == Configuration.maxPersonSize) {
                 break;
             }

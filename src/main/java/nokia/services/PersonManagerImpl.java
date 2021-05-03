@@ -60,13 +60,14 @@ public class PersonManagerImpl implements PersonManager {
 
             Person person = new Person(id, name);
             idToPersonHashMap.put(person.getId(), person);
-            if (nameToPersonHashMap.containsKey(person.getName())) {
-                nameToPersonHashMap.put(person.getName(), nameToPersonHashMap.get(person.getName())).add(person);
-            } else {
-                ArrayList<Person> personsList = new ArrayList<>();
-                personsList.add(person);
-                nameToPersonHashMap.put(person.getName(), personsList);
-            }
+//            if (nameToPersonHashMap.containsKey(person.getName())) {
+//                nameToPersonHashMap.put(person.getName(), nameToPersonHashMap.get(person.getName())).add(person);
+//            } else {
+//                ArrayList<Person> personsList = new ArrayList<>();
+//                personsList.add(person);
+//                nameToPersonHashMap.put(person.getName(), personsList);
+            nameToPersonHashMap.computeIfAbsent(person.getName(), k -> new ArrayList<>()).add(person);
+//            }
             return true;
         } finally {
             writeLock.unlock();
